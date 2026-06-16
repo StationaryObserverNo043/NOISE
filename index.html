@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NOISE — 言語観測システム</title>
+
+<!-- ── PWA / ホーム画面追加 ───────────────────────────────────── -->
+<meta name="application-name" content="NOISE">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1420">
+
+<!-- Apple (iOS Safari) -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NOISE">
+<link rel="apple-touch-icon"                       href="apple-touch-icon.png">
+<link rel="apple-touch-icon" sizes="120x120"       href="apple-touch-icon-120x120.png">
+<link rel="apple-touch-icon" sizes="152x152"       href="apple-touch-icon-152x152.png">
+<link rel="apple-touch-icon" sizes="167x167"       href="apple-touch-icon-167x167.png">
+<link rel="apple-touch-icon" sizes="180x180"       href="apple-touch-icon-180x180.png">
+
+<!-- Android / PWA -->
+<link rel="icon" type="image/png" sizes="192x192"  href="icon-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512"  href="icon-512x512.png">
+
+<!-- ファビコン -->
+<link rel="icon" type="image/x-icon"               href="favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32"    href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16"    href="favicon-16x16.png">
+
+<link rel="manifest" href="manifest.json">
+
+<!-- ── OGP（SNSリンク展開） ──────────────────────────────────── -->
+<meta property="og:type"        content="website">
+<meta property="og:title"       content="NOISE — 言語観測システム">
+<meta property="og:description" content="言葉がどのように見えるかを観測する。">
+<meta property="og:image"       content="https://stationaryobserverno043.github.io/NOISE/ogp.png">
+<meta property="og:site_name"   content="NOISE">
+
+<!-- ── Twitter Card ──────────────────────────────────────────── -->
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="NOISE — 言語観測システム">
+<meta name="twitter:description" content="言葉がどのように見えるかを観測する。">
+<meta name="twitter:image"       content="https://stationaryobserverno043.github.io/NOISE/ogp.png">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    /* ── 背景レイヤー ──────────────────────────────────────
+       bg-main を従来より明るい深青に引き上げ、
+       surface との差を拡大してカードを浮かせる        */
+    --bg:        #0e1420;
+    --bg-main:   #111827;
+    --surface:   #1c2740;
+    --surface-hi:#243050;
+
+    /* ── ボーダー ─────────────────────────────────────────
+       border を少し明るくして視認性を確保             */
+    --border:    #2e3d60;
+    --border-hi: #4c6099;
+
+    /* ── テキスト ─────────────────────────────────────────
+       text を純白に近づけてコントラスト比を上げる
+       sub  を明るくして読みやすくする                 */
+    --text:      #e8edf8;
+    --sub:       #8fa3c8;
+    --muted:     #516080;
+
+    /* ── アクセント ───────────────────────────────────────
+       noise（青紫）と cyan（緑青）は彩度を保ちつつ
+       明度を上げて背景に負けないようにする            */
+    --noise:     #a8c8ff;
+    --noise-dim: #5a7ab0;
+    --cyan:      #7ee8d8;
+
+    --warn:      #ffb86b;
+    --mono: 'Courier New', 'Courier', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* CRTスキャンライン（弱いノイズとして維持） */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* スキャンビーム：検出光のごく弱い通過 */
+  body::after {
+    content: '';
+    position: fixed; left: 0; right: 0; height: 80px;
+    background: linear-gradient(to bottom, transparent, rgba(156,192,255,0.04), transparent);
+    animation: scan 8s linear infinite;
+    pointer-events: none;
+    z-index: 998;
+  }
+
+  @keyframes scan {
+    0%   { top: -80px; }
+    100% { top: 100vh; }
+  }
+
+  .app {
+    min-height: 100vh;
+    background: var(--bg-main);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    max-width: 680px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* 微細な粒子ノイズ（計測器のグレインとして） */
+  .app::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* 画面切り替え（タイトル／言葉選択／物語生成） */
+  .screen {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+  }
+  .screen.active { display: flex; }
+
+  /* タイトル以外の画面はappのpaddingを自前で持つ */
+  #screen-guide,
+  #screen-select,
+  #screen-result {
+    padding: 48px 20px 80px;
+  }
+
+  /* 選択／結果画面のサブヘッダー */
+  .subheader {
+    width: 100%; margin-bottom: 40px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 1px solid var(--border); padding-bottom: 14px;
+    font-size: 12px; letter-spacing: 0.18em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .sh-guide-btn {
+    background: none;
+    border: none;
+    color: var(--sub);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.18s;
+  }
+  .sh-guide-btn:hover { color: var(--noise); }
+  .subheader .sh-title {
+    color: #e8f0ff; font-size: 18px; letter-spacing: 0.1em;
+    text-transform: none;
+    text-shadow:
+      0 0 10px rgba(220,235,255,0.18),
+      0 0 24px rgba(180,210,255,0.08);
+  }
+
+  /* ヘッダー */
+  .header {
+    width: 100%;
+    margin-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 24px;
+  }
+  .header-label {
+    font-size: 9px; letter-spacing: 0.28em;
+    color: var(--noise); text-transform: uppercase; margin-bottom: 8px;
+  }
+  .header-title {
+    font-size: 36px; letter-spacing: 0.14em;
+    color: #e8f0ff; font-weight: normal;
+    text-shadow:
+      0 0 12px rgba(220,235,255,0.22),
+      0 0 32px rgba(180,210,255,0.10);
+  }
+  .header-desc {
+    font-size: 11px; color: var(--noise);
+    margin-top: 10px; letter-spacing: 0.06em;
+    line-height: 1.8;
+  }
+
+  /* タイトル画面専用レイアウト */
+  #screen-title {
+    min-height: 100vh;
+    justify-content: space-between;
+    padding: 28px 20px 24px;
+  }
+  #screen-title .title-top {
+    width: 100%;
+    padding: 0;
+  }
+  #screen-title .title-mid {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  #screen-title .title-bot {
+    width: 100%;
+    padding-bottom: 0;
+    text-align: center;
+  }
+
+  /* 観測開始ボタン（主CTA） */
+  #screen-title .primary-btn {
+    display: block;
+    width: 100%;
+    padding: 16px 24px;
+    font-size: 13px;
+    letter-spacing: 0.28em;
+    border: 1px solid var(--noise-dim);
+    color: var(--noise);
+    background: transparent;
+    font-family: var(--mono);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    margin-bottom: 20px;
+  }
+  #screen-title .primary-btn:hover {
+    border-color: var(--noise);
+    background: rgba(156,192,255,0.06);
+    box-shadow: 0 0 10px rgba(156,192,255,0.12);
+  }
+
+  /* サブボタン群（GUIDE / CONTACT） */
+  #screen-title .title-sub-btn {
+    display: block;
+    width: 100%;
+    padding: 11px 24px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    border: none;
+    border-top: 1px solid var(--border);
+    color: var(--sub);
+    background: transparent;
+    font-family: var(--mono);
+    cursor: pointer;
+    text-align: left;
+    transition: color 0.18s;
+  }
+  #screen-title .title-sub-btn:last-child {
+    border-bottom: 1px solid var(--border);
+  }
+  #screen-title .title-sub-btn:hover {
+    color: var(--text);
+  }
+
+
+  /* セクション */
+  .section { width: 100%; margin-bottom: 32px; }
+
+  .section-label {
+    font-size: 12px; letter-spacing: 0.16em;
+    color: var(--sub); text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+  /* 選択カウント */
+  .section-label .count {
+    font-size: 11px; color: var(--noise-dim);
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+  }
+  .section-label .count.full { color: var(--noise); }
+
+  /* カードグリッド */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 460px) {
+    .card-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* 共通カード */
+  .c-card {
+    padding: 14px 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--sub);
+    font-family: var(--mono);
+    font-size: 15px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.18s, color 0.18s, background 0.18s, box-shadow 0.18s;
+    letter-spacing: 0.04em;
+    line-height: 1.4;
+  }
+  .c-card:hover:not(.locked) {
+    border-color: var(--border-hi);
+    color: var(--text);
+    background: var(--surface-hi);
+  }
+  .c-card.selected {
+    border-color: var(--noise);
+    color: var(--noise);
+    background: #1e2e50;
+    text-shadow: 0 0 8px rgba(168,200,255,0.45);
+    box-shadow:
+      0 0 0 1px rgba(168,200,255,0.2),
+      0 0 16px rgba(168,200,255,0.16),
+      inset 0 0 12px rgba(168,200,255,0.06);
+  }
+  /* 2枚上限に達したとき未選択カードを薄く */
+  .c-card.locked {
+    opacity: 0.28;
+    cursor: default;
+  }
+
+  /* NOISEカードは特別扱い（単一選択） */
+  .noise-card.selected {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: #183430;
+    text-shadow: 0 0 8px rgba(126,232,216,0.45);
+    box-shadow:
+      0 0 0 1px rgba(126,232,216,0.2),
+      0 0 16px rgba(126,232,216,0.16),
+      inset 0 0 12px rgba(126,232,216,0.06);
+  }
+
+  /* 生成ボタンエリア（選択画面・GUIDE画面用） */
+  .generate-wrap {
+    width: 100%;
+    margin: 16px 0 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .generate-btn {
+    padding: 16px 56px;
+    background: transparent;
+    border: 1px solid var(--noise-dim);
+    color: var(--noise);
+    font-family: var(--mono); font-size: 14px;
+    letter-spacing: 0.25em; cursor: pointer;
+    text-transform: uppercase;
+    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, color 0.2s, text-shadow 0.2s;
+  }
+  .generate-btn:hover:not(:disabled) {
+    border-color: var(--noise);
+    background: rgba(156,192,255,0.08);
+    box-shadow: 0 0 8px rgba(156,192,255,0.18);
+  }
+  .generate-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* タイトル以外のサブボタン（GUIDE戻るなど） */
+  .title-sub-btn {
+    padding: 10px 56px;
+    font-size: 13px;
+    border-color: var(--border);
+    color: var(--sub);
+  }
+  .title-sub-btn:hover {
+    border-color: var(--border-hi);
+    color: var(--text);
+    background: rgba(156,192,255,0.04);
+    box-shadow: none;
+  }
+
+  .hint {
+    font-size: 12px; color: var(--sub); letter-spacing: 0.08em;
+    min-height: 1.4em; text-align: center;
+  }
+
+  /* 観測中 */
+  .observing {
+    width: 100%; display: none;
+    flex-direction: column; align-items: center;
+    gap: 16px; padding: 40px 0;
+  }
+  .observing.active { display: flex; }
+  .obs-label {
+    font-size: 11px; letter-spacing: 0.3em; color: var(--sub);
+    animation: blink 1s step-start infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.2; }
+  }
+  .obs-dots { display: flex; gap: 6px; }
+  .obs-dot {
+    width: 3px; height: 3px;
+    background: var(--noise-dim); border-radius: 50%;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  .obs-dot:nth-child(2) { animation-delay: 0.2s; }
+  .obs-dot:nth-child(3) { animation-delay: 0.4s; }
+  .obs-dot:nth-child(4) { animation-delay: 0.6s; }
+  .obs-dot:nth-child(5) { animation-delay: 0.8s; }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.5); }
+  }
+
+  /* 結果 */
+  .result {
+    width: 100%; display: none;
+    opacity: 0; transition: opacity 0.8s ease;
+  }
+  .result.visible  { display: block; }
+  .result.faded-in { opacity: 1; }
+
+  .result-tags {
+    display: flex; gap: 8px; margin-bottom: 36px; flex-wrap: wrap;
+  }
+  .result-tag {
+    font-size: 12px; letter-spacing: 0.08em;
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .result-tag.is-noise { border-color: var(--cyan); }
+  .result-tag .tag-cat {
+    color: var(--sub); font-size: 10px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .result-tag .tag-val { color: var(--text); }
+  .result-tag.is-noise .tag-val { color: var(--cyan); }
+
+  /* 観測本文 */
+  .observation {
+    border-left: 2px solid var(--noise-dim);
+    padding: 28px 24px 28px 28px;
+    background: rgba(168,200,255,0.03);
+  }
+  .obs-header {
+    font-size: 11px; letter-spacing: 0.22em;
+    color: #e8f0ff; margin-bottom: 24px;
+    text-transform: uppercase;
+    text-shadow: 0 0 8px rgba(220,235,255,0.15);
+  }
+  .obs-opening {
+    font-size: 15px; letter-spacing: 0.12em;
+    color: var(--cyan); margin-bottom: 32px;
+    text-shadow: 0 0 6px rgba(126,232,216,0.2);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .obs-opening .noise-bracket {
+    color: var(--noise-dim);
+    font-size: 1em;
+    letter-spacing: 0;
+  }
+  .obs-sentence {
+    font-size: 17px; letter-spacing: 0.04em;
+    color: var(--text);
+    line-height: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  /* 1行 = 1フレーズ */
+  .obs-line {
+    display: block;
+    padding: 10px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 「――」で終わる行：2文字を隙間なく繋げて長い棒に */
+  .obs-line .echo {
+    color: var(--text);
+    letter-spacing: -0.12em;
+  }
+  /* 段間の空行 */
+  .obs-gap {
+    display: block;
+    height: 28px;
+  }
+  /* 断絶点：「――」なし、次行との間に余白 */
+  .obs-line.is-break {
+    padding-bottom: 28px;
+  }
+  /* 最終行：動詞単体。記号なし */
+  .obs-line.is-final {
+    color: var(--text);
+    padding-top: 4px;
+  }
+  /* 「――」で終わる最終行（旧） */
+  .obs-line.is-last {
+    color: var(--text);
+    padding-bottom: 0;
+  }
+  /* NOISEワードを『』で囲む */
+  .obs-noise-word {
+    color: var(--cyan);
+    text-shadow: 0 0 6px rgba(143,245,232,0.25);
+  }
+  .obs-sentence .joiner {
+    color: var(--sub);
+    font-size: 0.9em;
+  }
+  .obs-tail {
+    font-size: 11px; color: var(--sub);
+    letter-spacing: 0.18em; font-style: italic;
+  }
+  .obs-tail.empty { display: none; }
+
+  /* GUIDEスクリーン */
+  .guide-body {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+  }
+  .guide-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .guide-heading {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    color: var(--noise-dim);
+    text-transform: uppercase;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+  .guide-body p {
+    font-size: 14px;
+    color: var(--sub);
+    letter-spacing: 0.04em;
+    line-height: 1.8;
+  }
+  .guide-step {
+    color: var(--noise-dim);
+    margin-right: 6px;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+  }
+  .guide-label {
+    display: inline-block;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    padding: 2px 8px;
+    margin-right: 10px;
+    color: var(--sub);
+    vertical-align: middle;
+  }
+  .guide-label.noise-label {
+    border-color: var(--cyan);
+    color: var(--cyan);
+  }
+
+  .guide-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .guide-step-row {
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .guide-step-row:first-child {
+    border-top: 1px solid var(--border);
+  }
+  .guide-num {
+    font-size: 11px;
+    color: var(--noise-dim);
+    letter-spacing: 0.12em;
+    flex-shrink: 0;
+    width: 12px;
+    text-align: right;
+  }
+  .guide-step-text {
+    font-size: 14px;
+    color: var(--sub);
+    letter-spacing: 0.04em;
+    line-height: 1.8;
+  }
+  .guide-card-name {
+    display: inline-block;
+    margin-right: 12px;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+  .guide-card-noise {
+    color: var(--cyan);
+  }
+  .guide-num.noise-label {
+    color: var(--cyan);
+  }
+    font-size: 12px;
+    color: var(--noise-dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* フッター共通 */
+  .footer {
+    margin-top: 64px; font-size: 10px;
+    color: var(--noise) !important; letter-spacing: 0.2em; text-align: center;
+    font-family: sans-serif;
+  }
+  /* 結果画面フッター */
+  #screen-result .footer {
+    margin-top: 40px;
+  }
+  /* 結果画面のアクション群（再観測する／Xで呟く／タイトルへ戻る） */
+  .action-wrap {
+    width: 100%; margin-top: 40px;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 16px;
+  }
+  .action-btn {
+    background: none; border: none;
+    color: var(--sub); font-family: var(--mono); font-size: 14px;
+    letter-spacing: 0.14em; cursor: pointer;
+    padding: 6px 0;
+    transition: color 0.18s;
+  }
+  .action-btn:hover { color: var(--noise); text-shadow: 0 0 6px rgba(156,192,255,0.22); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ Screen 1: タイトル ═══ -->
+  <section class="screen active" id="screen-title">
+
+    <!-- ① タイトルブロック（上） -->
+    <div class="title-top">
+      <header class="header">
+        <div class="header-label">Language Observation System</div>
+        <div class="header-title">NOISE</div>
+        <div class="header-desc">言葉がどのように見えるかを観測する。</div>
+      </header>
+    </div>
+
+    <!-- ② ボタン群（中） -->
+    <div class="title-mid">
+      <button class="primary-btn" id="title-start-btn">▷ 観測開始―OBSERVE―</button>
+      <button class="title-sub-btn" id="title-guide-btn">▷ 道標―GUIDE―</button>
+      <button class="title-sub-btn" id="title-contact-btn">▷ 交信―CONTACT―</button>
+    </div>
+
+    <!-- ③ フッター（下） -->
+    <div class="title-bot">
+      <footer class="footer">
+        <span style="color:var(--noise);font-family:sans-serif;font-weight:300;">NOISE v1.0 &nbsp;|&nbsp; 観測記録は保存されない</span>
+      </footer>
+    </div>
+
+  </section>
+
+  <!-- ═══ Screen 1.5: 道標（GUIDE） ═══ -->
+  <section class="screen" id="screen-guide">
+    <div class="subheader">
+      <span class="sh-title">NOISE</span>
+      <span>道標―GUIDE―</span>
+    </div>
+
+    <div class="guide-body">
+
+      <div class="guide-block">
+        <div class="guide-heading">このアプリについて</div>
+        <p>声にならない、思考の断片。</p>
+        <p>文脈は、繋がりかけては途絶える。<br>言葉は、光にも闇にも変わる。</p>
+        <p>NOISEは、「立ち位置」。</p>
+        <p>意味を説明するものではない。<br>意味を固定するものでもない。</p>
+        <p>ただ、言葉がどのように見えるか——<br>その変化を、観測する。</p>
+      </div>
+
+      <div class="guide-block">
+        <div class="guide-heading">観測について</div>
+        <p>『NOISE』は、WEBブラウザ上で完結する観測装置。</p>
+        <p>個人情報は収集されない。<br>観測ログも保存されない。</p>
+        <p>生成された断片は、<br>あなたの端末の中だけで観測される。</p>
+        <p>管理者へ送信されることはない。</p>
+        <p>あなたの言葉は、<br>あなたの中でのみ観測できる。</p>
+      </div>
+
+      <div class="guide-block">
+        <div class="guide-heading">操作</div>
+        <div class="guide-steps">
+          <div class="guide-step-row">
+            <span class="guide-num">1</span>
+            <span class="guide-step-text">NOISEを選ぶ（1枚）</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">2</span>
+            <span class="guide-step-text">名詞・形容詞・動詞・世界観を選ぶ（最大2枚）</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">3</span>
+            <span class="guide-step-text">観測開始</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">4</span>
+            <span class="guide-step-text">出力は残らない<br><span class="guide-step-sub">Xへ</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="guide-block">
+        <div class="guide-heading">カードの種類</div>
+        <div class="guide-steps">
+          <div class="guide-step-row">
+            <span class="guide-num noise-label">N</span>
+            <span class="guide-step-text"><span class="guide-card-name guide-card-noise">NOISE</span>立ち位置（見え方を変える）</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">名</span>
+            <span class="guide-step-text"><span class="guide-card-name">名詞</span>観測対象</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">形</span>
+            <span class="guide-step-text"><span class="guide-card-name">形容詞</span>修飾</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">動</span>
+            <span class="guide-step-text"><span class="guide-card-name">動詞</span>作用</span>
+          </div>
+          <div class="guide-step-row">
+            <span class="guide-num">界</span>
+            <span class="guide-step-text"><span class="guide-card-name">世界観</span>空間</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="generate-wrap" style="margin-top: 40px;">
+      <button class="generate-btn title-sub-btn" id="guide-back-btn">▷タイトルへ戻る</button>
+    </div>
+  </section>
+
+  <!-- ═══ Screen 2: 言葉選択 ═══ -->
+  <section class="screen" id="screen-select">
+    <div class="subheader">
+      <span class="sh-title">NOISE</span>
+      <span>言葉を選択する</span>
+      <button class="sh-guide-btn" id="select-guide-btn">道標―GUIDE―</button>
+    </div>
+
+    <!-- NOISE（1枚） -->
+    <section class="section">
+      <div class="section-label">
+        NOISE — 1枚選べ
+        <span class="count" id="count-noise">0 / 1</span>
+      </div>
+      <div class="card-grid" id="grid-noise"></div>
+    </section>
+
+    <!-- 名詞（1〜2枚） -->
+    <section class="section">
+      <div class="section-label">
+        名詞 — 1〜2枚選べ
+        <span class="count" id="count-noun">0 / 2</span>
+      </div>
+      <div class="card-grid" id="grid-noun"></div>
+    </section>
+
+    <!-- 形容詞（1〜2枚） -->
+    <section class="section">
+      <div class="section-label">
+        形容詞 — 1〜2枚選べ
+        <span class="count" id="count-adj">0 / 2</span>
+      </div>
+      <div class="card-grid" id="grid-adj"></div>
+    </section>
+
+    <!-- 動詞（1〜2枚） -->
+    <section class="section">
+      <div class="section-label">
+        動詞 — 1〜2枚選べ
+        <span class="count" id="count-verb">0 / 2</span>
+      </div>
+      <div class="card-grid" id="grid-verb"></div>
+    </section>
+
+    <!-- 世界観（1〜2枚） -->
+    <section class="section">
+      <div class="section-label">
+        世界観 — 1〜2枚選べ
+        <span class="count" id="count-world">0 / 2</span>
+      </div>
+      <div class="card-grid" id="grid-world"></div>
+    </section>
+
+    <!-- 観測ボタン -->
+    <div class="generate-wrap">
+      <button class="generate-btn" id="generate-btn" disabled>OBSERVE</button>
+      <div class="hint" id="hint-text"></div>
+    </div>
+  </section>
+
+  <!-- ═══ Screen 3: 物語生成 ═══ -->
+  <section class="screen" id="screen-result">
+    <div class="subheader">
+      <span class="sh-title">NOISE</span>
+      <span>観測結果</span>
+    </div>
+
+    <!-- 観測中 -->
+    <div class="observing" id="observing">
+      <div class="obs-label">OBSERVING</div>
+      <div class="obs-dots">
+        <div class="obs-dot"></div><div class="obs-dot"></div>
+        <div class="obs-dot"></div><div class="obs-dot"></div>
+        <div class="obs-dot"></div>
+      </div>
+    </div>
+
+    <!-- 結果 -->
+    <div class="result" id="result">
+      <div class="result-tags" id="result-tags"></div>
+      <div class="observation">
+        <div class="obs-header">observation log</div>
+        <div class="obs-opening"  id="obs-opening"></div>
+        <div class="obs-sentence" id="obs-sentence"></div>
+        <div class="obs-tail"     id="obs-tail"></div>
+      </div>
+
+      <div class="action-wrap">
+        <button class="action-btn" id="reobserve-btn">▷言葉を選び直す</button>
+        <button class="action-btn" id="tweet-btn">▷Xで呟く</button>
+        <button class="action-btn" id="title-btn">▷タイトルへ戻る</button>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span style="color:var(--noise);font-family:sans-serif;font-weight:300;">NOISE v1.0 &nbsp;|&nbsp; 観測記録は保存されない</span>
+    </footer>
+  </section>
+
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────
+const CATS = {
+  noise: {
+    label: 'NOISE',
+    items: ['完璧','執着','孤独','焦燥','諦め','臆病','希望','約束','憧れ','期待','沈黙','境界'],
+    max: 1,
+  },
+  noun: {
+    label: '名詞',
+    items: ['観測者','漂流者','巡礼者','使者','亡霊','外星人','詩人','旅人','少年','少女','老人','騎士'],
+    max: 2,
+  },
+  adj: {
+    label: '形容詞',
+    items: ['錆びた','透明な','重い','遠い','静かな','滲んだ','零れた','消えかけの','空の','古い','深い','薄い'],
+    max: 2,
+  },
+  verb: {
+    label: '動詞',
+    items: ['観測する','名付ける','待つ','潜る','描く','手放す','漂う','探す','戻る','立ち止まる','辿る','渡る'],
+    max: 2,
+  },
+  world: {
+    label: '世界観',
+    items: ['深海','湖畔','砂漠','魔城','星雲','孤島','氷原','平原','港','谷','塔','空洞'],
+    max: 2,
+  },
+};
+
+// NOISE = 意味が確定する直前で崩壊する揺らぎ。
+// 個別の語に固定意味を割り当てない。各語はレイヤー内で同格に扱う。
+
+// 形容詞のテ形（2語連続する場合、1語目をテ形にして接続する）
+// 例：「錆びた」滲んだ → 「錆びて」滲んだ
+const ADJ_TE = {
+  '錆びた':'錆びて', '透明な':'透明で', '重い':'重くて', '遠い':'遠くて',
+  '静かな':'静かで', '滲んだ':'滲んで', '零れた':'零れて', '消えかけの':'消えかけで',
+  '空の':'空で', '古い':'古くて', '深い':'深くて', '薄い':'薄くて',
+};
+
+// 動詞の使役形（「Aは Bを 動詞」の構造で、Bに動作を行わせる場合に使用）
+// 例：立ち止まる → 立ち止まらせる
+const VERB_CAUSATIVE = {
+  '観測する':'観測させる', '名付ける':'名付けさせる', '待つ':'待たせる',
+  '潜る':'潜らせる', '描く':'描かせる', '手放す':'手放させる',
+  '漂う':'漂わせる', '探す':'探させる', '戻る':'戻らせる',
+  '立ち止まる':'立ち止まらせる', '辿る':'辿らせる', '渡る':'渡らせる',
+};
+
+// ─── STATE ──────────────────────────────────────────────────────────
+// noise: Set<index> (max 1)
+// noun/adj/verb/world: Set<index> (max 2)
+const state = {
+  noise: new Set(),
+  noun:  new Set(),
+  adj:   new Set(),
+  verb:  new Set(),
+  world: new Set(),
+  isObserving: false,
+};
+
+// ─── DOM REFS ───────────────────────────────────────────────────────
+const DOM = {
+  grids:    {},
+  counts:   {},
+  cardEls:  {},   // catKey → Array<Element>
+  generate: document.getElementById('generate-btn'),
+  hint:     document.getElementById('hint-text'),
+  observing:document.getElementById('observing'),
+  result:   document.getElementById('result'),
+  resultTags:document.getElementById('result-tags'),
+  opening:  document.getElementById('obs-opening'),
+  sentence: document.getElementById('obs-sentence'),
+  tail:     document.getElementById('obs-tail'),
+};
+
+Object.keys(CATS).forEach(k => {
+  DOM.grids[k]   = document.getElementById(`grid-${k}`);
+  DOM.counts[k]  = document.getElementById(`count-${k}`);
+  DOM.cardEls[k] = [];
+});
+
+// ─── 画面切り替え ───────────────────────────────────────────────────
+let guideReturnScreen = 'title'; // GUIDEから戻る画面を記憶
+const SCREENS = {
+  title:  document.getElementById('screen-title'),
+  guide:  document.getElementById('screen-guide'),
+  select: document.getElementById('screen-select'),
+  result: document.getElementById('screen-result'),
+};
+function showScreen(name) {
+  Object.values(SCREENS).forEach(s => s.classList.remove('active'));
+  SCREENS[name].classList.add('active');
+}
+
+document.getElementById('title-start-btn').addEventListener('click', () => {
+  showScreen('select');
+});
+document.getElementById('title-guide-btn').addEventListener('click', () => {
+  guideReturnScreen = 'title';
+  showScreen('guide');
+});
+document.getElementById('title-contact-btn').addEventListener('click', () => {
+  window.open('https://x.com/teabreak_inv', '_blank', 'noopener');
+});
+document.getElementById('guide-back-btn').addEventListener('click', () => {
+  showScreen(guideReturnScreen);
+});
+
+// ─── 言葉選択画面からGUIDEへ ─────────────────────────────────────
+document.getElementById('select-guide-btn').addEventListener('click', () => {
+  guideReturnScreen = 'select';
+  showScreen('guide');
+});
+
+// ─── RENDER ─────────────────────────────────────────────────────────
+function render() {
+  Object.keys(CATS).forEach(k => {
+    const cat   = CATS[k];
+    const sel   = state[k];
+    const isFull = sel.size >= cat.max;
+
+    // カードのselected / locked をstateから一方向で決定
+    DOM.cardEls[k].forEach((el, i) => {
+      const isSelected = sel.has(i);
+      el.classList.toggle('selected', isSelected);
+      // 上限に達しており未選択のカードはlocked
+      el.classList.toggle('locked', isFull && !isSelected);
+    });
+
+    // カウント表示
+    const countEl = DOM.counts[k];
+    countEl.textContent = `${sel.size} / ${cat.max}`;
+    countEl.classList.toggle('full', sel.size >= 1);
+  });
+
+  // OBSERVE条件：全カテゴリ1枚以上
+  const ready = Object.keys(CATS).every(k => state[k].size >= 1) && !state.isObserving;
+  DOM.generate.disabled = !ready;
+
+  // ヒント
+  if (state.isObserving) {
+    DOM.hint.textContent = '';
+    return;
+  }
+  const missing = Object.keys(CATS)
+    .filter(k => state[k].size === 0)
+    .map(k => CATS[k].label);
+  if (missing.length === 0) {
+    DOM.hint.textContent = '観測を開始できる';
+  } else {
+    DOM.hint.textContent = `未選択：${missing.join(' / ')}`;
+  }
+}
+
+// ─── グリッド生成 ────────────────────────────────────────────────────
+Object.keys(CATS).forEach(k => {
+  const cat = CATS[k];
+  cat.items.forEach((word, i) => {
+    const btn = document.createElement('button');
+    btn.className   = 'c-card';
+    btn.textContent = word;
+    btn.addEventListener('click', () => {
+      if (state.isObserving) return;
+      const sel = state[k];
+      if (sel.has(i)) {
+        sel.delete(i);          // 選択解除（常に可能）
+      } else if (sel.size < cat.max) {
+        sel.add(i);             // 選択（上限未満のとき）
+      }
+      // locked状態のカードをクリックしても何もしない（上限超過防止）
+      render();
+    });
+    DOM.grids[k].appendChild(btn);
+    DOM.cardEls[k].push(btn);
+  });
+});
+
+// ─── テキスト結合ヘルパー ────────────────────────────────────────────
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ─── OBSERVE処理（OBSERVE／再観測する 共通）─────────────────────────────
+function runObservation() {
+  state.isObserving = true;
+  render();
+
+  DOM.result.classList.remove('visible', 'faded-in');
+  DOM.observing.classList.add('active');
+
+  setTimeout(() => {
+    // 選択値を取り出す（Set<index> → words[]）
+    const resolve = k => [...state[k]].map(i => CATS[k].items[i]);
+
+    const noiseArr  = resolve('noise');
+    const nounArr   = resolve('noun');
+    const adjArr    = resolve('adj');
+    const verbArr   = resolve('verb');
+    const worldArr  = resolve('world');
+
+    // ─── 観測ログの構築（3段構成）──────────────────────────────────
+    //
+    // 【3段構成】
+    //   第1段：抽象概念          → adj（1〜2語 × 1〜2行）
+    //   [空行]
+    //   第2段：存在・視点の断片   → noun（1〜2語 × 1〜2行）
+    //   [空行]
+    //   第3段：空間・行為・状態   → world（B語）＋ verb（C語）
+    //
+    // 【語彙分類】
+    //   adj   : B語（テ形変換のみ許可。2語連続の1語目のみ）
+    //   noun  : B語（助詞「の/が/を/なし」をランダム付与）
+    //   world : B語（助詞「に/にて/なし」をランダム付与）
+    //   verb  : C語（変形禁止。そのまま出力）
+    //
+    // 【語数制限】
+    //   ・1〜2語が基本
+    //   ・3語：第3段のworld＋verb同行のみ許可（最大1箇所）
+    //   ・4語以上：禁止
+    //
+    // 【崩しルール】
+    //   ・各段は1〜2行。文として完成させない。
+    //   ・接続語・補足・説明禁止。
+    //   ・意味が成立しかける地点で必ず崩す。
+    //   ・最終行（verb）：記号なし・句点なし。
+
+    // ── 助詞ヘルパー ────────────────────────────────────────────────
+    const nounPosts  = ['の', 'が', 'を', ''];
+    const worldPosts = ['に', 'にて', ''];
+
+    // ── 3語行を第3段で使うか決定 ──────────────────────────────────
+    // 条件：world=1語 かつ verb=1語 → 「worldPost verb」で3語行（任意・50%）
+    // world=2語 or verb=2語の場合は分割するので3語行不使用
+    const canUse3 = (worldArr.length === 1 && verbArr.length === 1 && Math.random() < 0.5);
+
+    // ── セグメント構築 ──────────────────────────────────────────────
+    // segment = 段の単位 = 行の配列
+    // line = { text: string, echo: bool, final: bool }
+
+    // 第1段：adj
+    const seg1 = [];
+    if (adjArr.length === 2) {
+      // ランダムで「テ形結合（1行）」か「別行（2行）」か選ぶ
+      if (Math.random() < 0.5) {
+        const te = ADJ_TE[adjArr[0]] || adjArr[0];
+        seg1.push({ text: te + adjArr[1], echo: true, final: false });
+      } else {
+        seg1.push({ text: adjArr[0],     echo: true,  final: false });
+        seg1.push({ text: adjArr[1],     echo: false, final: false });
+      }
+    } else {
+      seg1.push({ text: adjArr[0], echo: false, final: false });
+    }
+
+    // 第2段：noun
+    const seg2 = [];
+    if (nounArr.length === 2) {
+      const p = pickRandom(nounPosts);
+      seg2.push({ text: nounArr[0] + p, echo: true,  final: false });
+      seg2.push({ text: nounArr[1],     echo: false, final: false });
+    } else {
+      const p = pickRandom(nounPosts);
+      seg2.push({ text: nounArr[0] + p, echo: false, final: false });
+    }
+
+    // 第3段：world＋verb
+    const seg3 = [];
+    if (canUse3) {
+      // 3語行：「world + 助詞 + verb」を1行に
+      const p = pickRandom(worldPosts.filter(x => x !== ''));  // 助詞なし禁止（3語成立のため）
+      seg3.push({ text: worldArr[0] + p + verbArr[0], echo: false, final: true });
+    } else {
+      // world行（1〜2行）
+      if (worldArr.length === 2) {
+        const p1 = pickRandom(worldPosts);
+        const p2 = pickRandom(worldPosts);
+        seg3.push({ text: worldArr[0] + p1, echo: true,  final: false });
+        seg3.push({ text: worldArr[1] + p2, echo: false, final: false });
+      } else {
+        const p = pickRandom(worldPosts);
+        seg3.push({ text: worldArr[0] + p, echo: false, final: false });
+      }
+      // verb行（1〜2行）
+      if (verbArr.length === 2) {
+        seg3.push({ text: verbArr[0], echo: true,  final: false });
+      }
+      seg3.push({ text: verbArr[verbArr.length - 1], echo: false, final: true });
+    }
+
+    // ── HTMLへ変換 ──────────────────────────────────────────────────
+    // 段間 = <span class="obs-gap"></span>（空行）
+    // echo=true  → 行末に「――」
+    // final=true → 記号なし・句点なし（最終行）
+    // それ以外   → テキストのみ
+
+    function renderSeg(lines) {
+      return lines.map(line => {
+        if (line.final) {
+          return `<span class="obs-line is-final">${line.text}</span>`;
+        } else if (line.echo) {
+          return `<span class="obs-line">${line.text}<span class="echo">――</span></span>`;
+        } else {
+          return `<span class="obs-line">${line.text}</span>`;
+        }
+      }).join('');
+    }
+
+    const html =
+      renderSeg(seg1) +
+      '<span class="obs-gap"></span>' +
+      renderSeg(seg2) +
+      '<span class="obs-gap"></span>' +
+      renderSeg(seg3);
+
+    const tail = '';
+
+    // タグ表示
+    DOM.resultTags.innerHTML = '';
+    const tagDefs = [
+      { cat: 'NOISE', vals: noiseArr, key: true },
+      { cat: '名詞',  vals: nounArr },
+      { cat: '形容詞',vals: adjArr },
+      { cat: '動詞',  vals: verbArr },
+      { cat: '世界観',vals: worldArr },
+    ];
+    tagDefs.forEach(({ cat, vals, key }) => {
+      vals.forEach(v => {
+        const tag = document.createElement('div');
+        tag.className = 'result-tag' + (key ? ' is-noise' : '');
+        tag.innerHTML = `<span class="tag-cat">${cat}</span><span class="tag-val">${v}</span>`;
+        DOM.resultTags.appendChild(tag);
+      });
+    });
+
+    // NOISEワードを『』で表示
+    const noiseWord = noiseArr[0] || '';
+    DOM.opening.innerHTML =
+      `<span class="noise-bracket">『</span><span>${noiseWord}</span><span class="noise-bracket">』</span>`;
+    DOM.sentence.innerHTML  = html;
+    DOM.tail.textContent    = tail;
+    DOM.tail.classList.toggle('empty', tail === '');
+
+    DOM.observing.classList.remove('active');
+    state.isObserving = false;
+    render();
+
+    DOM.result.classList.add('visible');
+    requestAnimationFrame(() => requestAnimationFrame(() => DOM.result.classList.add('faded-in')));
+  }, 1800);
+}
+
+// ─── OBSERVE（言葉選択画面 → 物語生成画面）──────────────────────────────
+DOM.generate.addEventListener('click', () => {
+  if (!Object.keys(CATS).every(k => state[k].size >= 1) || state.isObserving) return;
+  showScreen('result');
+  runObservation();
+});
+
+// ─── 再観測する（同じ選択語で別パターンを再生成）────────────────────────
+// ─── 言葉を選び直す（選択をリセットして選択画面へ）────────────────────
+document.getElementById('reobserve-btn').addEventListener('click', () => {
+  if (state.isObserving) return;
+  DOM.result.classList.remove('visible', 'faded-in');
+  Object.keys(CATS).forEach(k => state[k].clear());
+  state.isObserving = false;
+  render();
+  showScreen('select');
+});
+
+// ─── Xで呟く ────────────────────────────────────────────────────────
+document.getElementById('tweet-btn').addEventListener('click', () => {
+  if (state.isObserving) return;
+  // NOISEワード取得
+  const noiseWord = DOM.opening.querySelector('span:not(.noise-bracket)')?.textContent.trim() || '';
+  // 各行テキストを改行で並べる
+  const lineEls = DOM.sentence.querySelectorAll('.obs-line');
+  const lineTexts = [...lineEls].map(el => el.textContent.trim());
+  const parts = [
+    `『${noiseWord}』`,
+    '',
+    ...lineTexts,
+    '',
+    `#${noiseWord}`,
+    '#NOISE',
+    '',
+    'https://stationaryobserverno043.github.io/NOISE/',
+  ];
+  const text = parts.join('\n');
+  const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+  window.open(url, '_blank', 'noopener');
+});
+
+// ─── タイトルへ戻る（選択をリセットしてタイトル画面へ）──────────────────
+document.getElementById('title-btn').addEventListener('click', () => {
+  if (state.isObserving) return;
+  DOM.result.classList.remove('visible', 'faded-in');
+  Object.keys(CATS).forEach(k => state[k].clear());
+  state.isObserving = false;
+  render();
+  showScreen('title');
+});
+
+// 初期描画
+render();
+</script>
+</body>
+</html>

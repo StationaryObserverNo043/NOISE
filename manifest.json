@@ -1,0 +1,13 @@
+{
+  "name": "NOISE — 言語観測システム",
+  "short_name": "NOISE",
+  "description": "言葉がどのように見えるかを観測する。",
+  "start_url": "/NOISE/",
+  "display": "standalone",
+  "background_color": "#0e1420",
+  "theme_color": "#0e1420",
+  "icons": [
+    { "src": "icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
